@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Trap Line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --face:#d4d0c8;
+    --shadow:#808080;
+    --titlebar1:#0a246a;
+    --titlebar2:#a6caf0;
+    --green:#00d100;
+    --dkgreen:#004d00;
+    --red:#ff3333;
+    --dkred:#900;
+    --amber:#ffb400;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:#008080;
+    font-family:'Tahoma','Segoe UI',Geneva,sans-serif;
+    color:#000;
+    padding:0 0 46px 0;
+    font-size:11.5px;
+  }
+  .os-bar{
+    background:var(--face); border-bottom:2px solid #000; box-shadow:0 2px 6px rgba(0,0,0,0.4);
+  }
+  .os-title{
+    background:linear-gradient(90deg,var(--titlebar1),var(--titlebar2));
+    color:#fff; padding:3px 8px; font-weight:bold; font-size:13px;
+  }
+  .os-menu{
+    background:var(--face); border-bottom:1px solid var(--shadow); padding:2px 10px;
+    font-size:11.5px; display:flex; gap:16px; align-items:center;
+  }
+  .menu-item{ position:relative; cursor:pointer; padding:2px 2px; }
+  .menu-item:hover{ background:var(--titlebar1); color:#fff; }
+  .menu-dropdown{
+    position:absolute; top:100%; left:0; background:var(--face); border:2px outset #fff;
+    min-width:190px; z-index:80; box-shadow:2px 2px 6px rgba(0,0,0,0.4); margin-top:2px;
+  }
+  .menu-option{ padding:6px 10px; font-size:11px; color:#000; cursor:pointer; }
+  .menu-option:hover{ background:var(--titlebar1); color:#fff; }
+
+  .desktop{ max-width:1340px; margin:0 auto; padding:12px; }
+
+  .status-window{
+    background:var(--face); border:2px solid #000; box-shadow:3px 3px 10px rgba(0,0,0,0.4);
+    padding:8px 10px 6px; margin-bottom:10px;
+  }
+  .status-strip{ display:flex; gap:8px; flex-wrap:wrap; }
+  .led-box{ flex:1; min-width:120px; background:#000; border:2px inset var(--shadow); padding:13px 8px 5px; position:relative; text-align:right; }
+  .led-box .led-label{ position:absolute; top:2px; left:6px; font-size:9px; color:#777; letter-spacing:1px; }
+  .led-value{ font-family:'VT323',monospace; font-size:23px; letter-spacing:1px; line-height:1; }
+  .led-value.green{ color:var(--green); text-shadow:0 0 6px rgba(0,209,0,0.6); }
+  .led-value.red{ color:var(--red); text-shadow:0 0 6px rgba(255,51,51,0.6); }
+  .led-value.amber{ color:var(--amber); text-shadow:0 0 6px rgba(255,180,0,0.6); }
+  .led-sub{ position:absolute; bottom:2px; left:6px; right:6px; height:3px; background:#222; }
+  .led-sub i{ display:block; height:100%; background:var(--amber); width:0%; }
+  .goal-strip{ font-size:10.5px; color:#333; text-align:center; padding:4px 4px 0; }
+  @keyframes blink{ 0%,49%{opacity:1;} 50%,100%{opacity:0.25;} }
+  .led-box.locked .led-value{ animation:blink 0.8s infinite; }
+
+  .winapp-grid{ display:grid; gap:10px; grid-template-columns:1.25fr 1.1fr 1fr; align-items:start; }
+  @media (max-width:1000px){ .winapp-grid{ grid-template-columns:1fr 1fr; } }
+  @media (max-width:720px){ .winapp-grid{ grid-template-columns:1fr; } }
+  .col{ display:flex; flex-direction:column; gap:10px; }
+
+  /* Each panel is its own Win95-style window: title bar with working
+     minimize/close, both of which send it to the taskbar at the bottom. */
+  .winapp{
+    background:var(--face); border:2px solid #000; box-shadow:3px 3px 10px rgba(0,0,0,0.4);
+  }
+  .winapp-title{
+    background:linear-gradient(90deg,var(--titlebar1),var(--titlebar2));
+    color:#fff; display:flex; justify-content:space-between; align-items:center;
+    padding:3px 3px 3px 8px; font-weight:bold; font-size:12px;
+  }
+  .winapp-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .winapp-controls{ display:flex; gap:2px; flex-shrink:0; }
+  .winapp-controls button{
+    width:16px; height:14px; background:var(--face); border:1px outset #fff; color:#000;
+    font-size:10px; padding:0; line-height:1; cursor:pointer;
+  }
+  .winapp-controls button:active{ border-style:inset; }
+  .winapp-body{ padding:8px; position:relative; }
+  .winapp.collapsed .winapp-body{ display:none; }
+  .gamehidden{ display:none !important; }
+  .winmin{ display:none !important; }
+
+  .taskbar{
+    position:fixed; left:0; right:0; bottom:0; height:38px;
+    background:var(--face); border-top:2px outset #fff;
+    display:flex; align-items:center; gap:6px; padding:0 8px; overflow-x:auto; z-index:70;
+  }
+  .taskbar-btn{
+    background:var(--face); border:2px outset #fff; font-family:inherit; font-size:11px;
+    padding:5px 10px; cursor:pointer; white-space:nowrap; flex-shrink:0;
+  }
+  .taskbar-btn:active{ border-style:inset; }
+  .taskbar-empty{ font-size:10.5px; color:#666; font-style:italic; }
+
+  .groupbox{ border:2px groove var(--shadow); padding:14px 8px 8px; position:relative; }
+  .groupbox .legend{
+    position:absolute; top:-9px; left:8px; background:var(--face); padding:0 5px;
+    font-size:11.5px; font-weight:bold;
+  }
+  .listbox{ background:#fff; border:2px inset var(--shadow); padding:4px; }
+
+  .win95-btn{
+    background:var(--face); border:2px outset #fff; color:#000; font-family:inherit;
+    font-size:11.5px; padding:4px 10px; cursor:pointer;
+  }
+  .win95-btn:active{ border-style:inset; }
+  .win95-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  .move-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(86px,1fr)); gap:4px; }
+  .move-btn{
+    background:var(--face); border:2px outset #fff; padding:4px 3px; text-align:center;
+    cursor:pointer; font-size:10.5px;
+  }
+  .move-btn.here{ border-style:inset; background:#c6d8f0; font-weight:bold; }
+  .move-btn small{ display:block; font-size:8px; color:#555; }
+  .move-region{ font-size:10px; color:#555; letter-spacing:1.5px; font-weight:bold; margin:8px 0 3px; }
+  .move-region:first-child{ margin-top:0; }
+  .move-area-label{ font-size:9.5px; color:#444; margin:5px 0 2px; }
+
+  .market-item{ border-bottom:1px solid #ddd; padding:5px 3px; }
+  .market-item:last-child{ border-bottom:none; }
+  .mi-top{ display:flex; align-items:center; gap:6px; }
+  .mi-name{ font-weight:bold; font-size:11.5px; width:88px; }
+  .mi-name small{ display:block; font-weight:normal; font-size:8.5px; color:#666; }
+  .mi-price{ font-family:'VT323',monospace; font-size:17px; color:var(--dkgreen); width:56px; text-align:right; white-space:nowrap; }
+  .price-scale{ position:relative; flex:1; height:8px; border:1px solid #888; background:linear-gradient(90deg,var(--green),var(--amber) 50%,var(--red)); }
+  .price-scale .marker{ position:absolute; top:-3px; width:3px; height:13px; background:#000; box-shadow:0 0 2px #fff; transform:translateX(-50%); }
+  .mi-event{ font-size:9px; color:#555; font-style:italic; padding:1px 0 2px 94px; }
+  .mi-actions{ display:flex; gap:3px; margin-top:3px; }
+  .mi-actions button{
+    flex:1; background:var(--face); border:2px outset #fff; color:var(--dkgreen);
+    font-family:inherit; font-size:9.5px; padding:3px 1px; cursor:pointer;
+  }
+  .mi-actions button.sell{ color:var(--dkred); }
+  .mi-actions button:disabled{ opacity:0.35; cursor:not-allowed; }
+
+  .stash-bar-outer{ height:13px; border:2px inset var(--shadow); background:#c0c0c0; margin:2px 0 6px; }
+  .stash-bar-inner{ height:100%; background:var(--amber); width:0%; }
+  .prod-row{ display:flex; justify-content:space-between; font-size:11px; padding:3px 3px; border-bottom:1px solid #eee; }
+
+  .rule-item{ border-bottom:1px solid #ddd; padding:5px 3px; }
+  .rule-item:last-child{ border-bottom:none; }
+  .rule-head{ display:flex; justify-content:space-between; align-items:baseline; }
+  .rule-head b{ font-size:11px; }
+  .rule-head .vals{ font-family:'VT323',monospace; font-size:13px; color:var(--dkgreen); }
+  .rule-head .vals .sellv{ color:var(--dkred); }
+  .rule-scale{ position:relative; height:8px; border:1px solid #888; background:linear-gradient(90deg,var(--green),var(--amber) 50%,var(--red)); margin:4px 1px 1px; }
+  .rule-scale .zone{ position:absolute; top:0; bottom:0; background:rgba(0,0,0,0.22); }
+  .slider-pair{ display:flex; gap:6px; }
+  .slider-pair input[type=range]{ flex:1; height:12px; }
+
+  .hire-row{
+    display:flex; justify-content:space-between; align-items:center; padding:4px 5px;
+    border-bottom:1px solid #ddd;
+  }
+  .hire-row:last-child{ border-bottom:none; }
+  .hire-row b{ font-size:11px; }
+  .hire-row small{ display:block; color:#555; font-size:8.5px; }
+  .hire-row .price{
+    font-family:'VT323',monospace; color:var(--dkgreen); font-size:15px; white-space:nowrap;
+    background:#eef6ee; border:1px solid #9c9; border-radius:3px; padding:2px 8px;
+  }
+  .hire-row button{
+    background:var(--face); border:2px outset #fff; color:#000; font-family:inherit;
+    font-size:10.5px; padding:4px 10px; cursor:pointer;
+  }
+  .hire-row button:disabled{ opacity:0.4; cursor:not-allowed; }
+
+  .tier-card{ border:1px solid #999; background:#fff; padding:6px; margin-bottom:7px; }
+  .tier-card .tc-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:2px; }
+  .tier-card .tc-head b{ font-size:11.5px; }
+  .tier-card .tc-head button{ background:var(--face); border:2px outset #fff; color:var(--dkred); font-size:9px; padding:2px 6px; cursor:pointer; }
+  .tc-inv{ font-size:9.5px; color:#000; margin-top:2px; }
+  .tc-inv span{ display:inline-block; background:#eee; border:1px solid #bbb; padding:0 4px; margin:1px 2px 1px 0; }
+  .tc-status{ font-size:9px; color:#555; margin-top:3px; font-style:italic; min-height:11px; }
+
+  .unlock-row{
+    display:flex; justify-content:space-between; align-items:center; padding:5px;
+    border-bottom:1px solid #ddd;
+  }
+  .unlock-row:last-child{ border-bottom:none; }
+  .unlock-row b{ font-size:11px; display:block; }
+  .unlock-row small{ color:#555; font-size:8.5px; display:block; max-width:180px; }
+  .unlock-row button{
+    background:var(--face); border:2px outset #fff; font-family:'VT323',monospace;
+    font-size:13px; color:var(--dkgreen); padding:3px 8px; cursor:pointer; white-space:nowrap;
+  }
+  .unlock-row button:disabled{ opacity:0.4; cursor:not-allowed; }
+  .unlock-row.done{ opacity:0.55; }
+  .unlock-section{ font-weight:bold; font-size:10px; color:#444; letter-spacing:1px; padding:6px 4px 2px; }
+
+  /* bribe panel */
+  .bribe-body{ text-align:center; padding:4px 2px; }
+  .bribe-heat-outer{ height:14px; border:2px inset var(--shadow); background:#c0c0c0; margin-bottom:8px; position:relative; }
+  .bribe-heat-inner{ height:100%; background:linear-gradient(90deg,var(--green),var(--amber),var(--red)); width:0%; }
+  .bribe-heat-text{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:bold; }
+  .bribe-btn{
+    width:100%; background:var(--face); border:2px outset #fff; font-family:'VT323',monospace;
+    font-size:17px; color:var(--dkred); padding:7px 4px; cursor:pointer;
+  }
+  .bribe-btn:active{ border-style:inset; }
+  .bribe-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .bribe-note{ font-size:9px; color:#555; margin-top:5px; font-style:italic; }
+  .lockout-banner{
+    background:#900; color:#fff; font-weight:bold; text-align:center; font-size:10.5px;
+    padding:4px; margin-bottom:6px; display:none;
+  }
+  .lockout-banner.on{ display:block; animation:blink 1s infinite; }
+
+  .log-line{ font-size:10px; padding:2px; border-bottom:1px dotted #ccc; }
+  .log-line.warn{ color:var(--dkred); }
+  .log-line.good{ color:var(--dkgreen); }
+  .empty-note{ color:#666; font-size:10.5px; padding:4px 2px; font-style:italic; }
+
+  .toast{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    background:#ffffe1; border:1px solid #000; font-size:11.5px; padding:6px 12px;
+    z-index:50; opacity:0; transition:opacity 0.3s; pointer-events:none; box-shadow:2px 2px 6px rgba(0,0,0,0.4);
+  }
+  .toast.show{ opacity:1; }
+
+  .hidden{ display:none !important; }
+
+  .notify-stack{
+    position:fixed; right:14px; bottom:52px; z-index:90;
+    display:flex; flex-direction:column-reverse; gap:8px; max-width:280px;
+  }
+  .notify-card{
+    background:#fffbe0; border:2px solid #000; box-shadow:3px 3px 8px rgba(0,0,0,0.5);
+    padding:8px 10px; font-size:11px; opacity:0; transform:translateX(24px);
+    transition:opacity 0.3s, transform 0.3s; pointer-events:none;
+  }
+  .notify-card.show{ opacity:1; transform:translateX(0); }
+  .notify-card b{ display:block; font-size:10px; letter-spacing:0.5px; color:#555; margin-bottom:2px; }
+  .notify-card.ach{ background:#fff4cc; border-color:#a67c00; }
+  .notify-card.ach b{ color:#a67c00; }
+
+  .ach-row{
+    display:flex; justify-content:space-between; align-items:center; gap:8px;
+    padding:7px 6px; border-bottom:1px solid #ddd;
+  }
+  .ach-row:last-child{ border-bottom:none; }
+  .ach-row.locked{ opacity:0.5; }
+  .ach-row b{ font-size:11.5px; }
+  .ach-row small{ display:block; color:#555; font-size:9.5px; }
+  .ach-badge{ font-family:'VT323',monospace; font-size:14px; white-space:nowrap; }
+  .ach-badge.done{ color:var(--dkgreen); }
+  .ach-badge.todo{ color:#999; }
+
+  .factory-row{ border-bottom:1px solid #ddd; padding:6px 4px; }
+  .factory-row:last-child{ border-bottom:none; }
+  .factory-head{ display:flex; justify-content:space-between; align-items:center; }
+  .factory-head b{ font-size:11.5px; }
+  .factory-head small{ display:block; color:#555; font-size:9px; }
+  .factory-head button{
+    background:var(--face); border:2px outset #fff; color:var(--dkgreen); font-family:'VT323',monospace;
+    font-size:13px; padding:3px 8px; cursor:pointer; white-space:nowrap;
+  }
+  .factory-head button:disabled{ opacity:0.4; cursor:not-allowed; }
+  .factory-pricing{ margin-top:6px; padding-top:5px; border-top:1px dashed #ccc; }
+  .factory-pricing .pr-row{ display:flex; align-items:center; gap:6px; font-size:9.5px; color:#333; margin-top:3px; }
+  .factory-pricing .pr-row label{ width:62px; }
+  .factory-pricing input[type=range]{ flex:1; height:12px; }
+  .factory-pricing .pr-val{ font-family:'VT323',monospace; font-size:13px; color:var(--dkgreen); width:44px; text-align:right; }
+  .factory-pricing .mk-btn{
+    background:var(--face); border:2px outset #fff; color:#333; font-size:9px; padding:3px 6px; cursor:pointer;
+  }
+  .factory-pricing .mk-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .factory-demand{ font-size:9px; color:#555; margin-top:3px; font-style:italic; }
+  .pcb-banner{
+    border:1px dashed var(--dkgreen); background:#eefbef; padding:6px; margin-bottom:6px; font-size:10px; text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div class="os-bar">
+  <div class="os-title"><span id="titleText">Trap Line</span></div>
+  <div class="os-menu">
+    <div class="menu-item" id="fileMenuItem">
+      <span class="menu-label">File</span>
+      <div class="menu-dropdown hidden" id="fileDropdown">
+        <div class="menu-option" id="freeKidsOption" style="display:none;">Get 5 Free Street Kids</div>
+        <div class="menu-option" id="fileMenuPlaceholder" style="display:none; font-style:italic; color:#555; cursor:default;">Nice find, check back when you have a couple of street kids</div>
+      </div>
+    </div>
+    <span>View</span><span>Help</span>
+    <span style="margin-left:auto;"><button class="win95-btn" id="turboBtn" style="font-size:10px;padding:1px 8px;">Turbo ×10: OFF</button>
+    <button class="win95-btn" id="saveBtn" style="font-size:10px;padding:1px 8px;">Save</button>
+    <button class="win95-btn" id="resetBtn" style="font-size:10px;padding:1px 8px;">New Game</button>
+    <button class="win95-btn" id="achBtn" style="font-size:10px;padding:1px 8px;">Achievements</button></span>
+  </div>
+</div>
+
+<div class="desktop">
+
+  <div class="status-window">
+    <div class="status-strip">
+      <div class="led-box"><div class="led-label">CASH</div><div class="led-value green">$<span id="cashDisplay">0</span></div></div>
+      <div class="led-box"><div class="led-label">DAY</div><div class="led-value amber" id="dayDisplay">1</div><div class="led-sub"><i id="dayProgress"></i></div></div>
+      <div class="led-box" id="heatLed"><div class="led-label">HEAT</div><div class="led-value red"><span id="heatDisplay">0</span>%</div></div>
+      <div class="led-box" style="flex:1.4;"><div class="led-label">LOCATION</div><div class="led-value amber" style="font-size:17px; padding-top:4px;" id="locLine">Bushwick</div></div>
+    </div>
+    <div class="goal-strip" id="cartelGoal"></div>
+  </div>
+
+  <div class="winapp-grid" id="mainContent">
+
+    <!-- LEFT -->
+    <div class="col">
+      <div class="winapp" id="win-move" data-winid="move">
+        <div class="winapp-title"><span class="winapp-name">Get Moving</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body"><div id="travelList" class="move-grid"></div></div>
+      </div>
+      <div class="winapp" id="win-market" data-winid="market">
+        <div class="winapp-title"><span class="winapp-name">Market — <span id="marketLocName"></span></span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body"><div class="listbox" id="marketList"></div></div>
+      </div>
+      <div class="winapp" id="win-trenchcoat" data-winid="trenchcoat">
+        <div class="winapp-title"><span class="winapp-name">Trenchcoat</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body">
+          <div id="stashCapLabel" class="empty-note"></div>
+          <div class="stash-bar-outer"><div class="stash-bar-inner" id="stashBar"></div></div>
+          <div class="listbox" id="stashList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MIDDLE -->
+    <div class="col">
+      <div class="winapp gamehidden" id="win-factories" data-winid="factories">
+        <div class="winapp-title"><span class="winapp-name">Factories</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body">
+          <div class="empty-note" id="factoriesNote" style="padding:0 2px 5px;"></div>
+          <div class="listbox" id="factoriesList"></div>
+        </div>
+      </div>
+      <div class="winapp" id="win-hire" data-winid="hire">
+        <div class="winapp-title"><span class="winapp-name">Hire Crew</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body"><div class="listbox" id="hireList"></div></div>
+      </div>
+      <div class="winapp" id="win-crew" data-winid="crew">
+        <div class="winapp-title"><span class="winapp-name">Your Crew</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body"><div id="crewList"></div></div>
+      </div>
+      <div class="winapp" id="win-rules" data-winid="rules">
+        <div class="winapp-title"><span class="winapp-name">Crew Trading Rules</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body">
+          <div class="empty-note" style="padding:0 2px 5px;">One rulebook for the whole crew: buy under the green line, sell over the red line.</div>
+          <div class="listbox" id="rulesList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="col">
+      <div class="winapp" id="win-unlocks" data-winid="unlocks">
+        <div class="winapp-title"><span class="winapp-name">Unlocks</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body"><div class="listbox" id="unlockList"></div></div>
+      </div>
+      <div class="winapp" id="win-bribe" data-winid="bribe">
+        <div class="winapp-title"><span class="winapp-name">Grease the Wheels</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body">
+          <div class="bribe-body">
+            <div class="lockout-banner" id="lockoutBanner">TOO HOT — TRADING FROZEN UNTIL TOMORROW</div>
+            <div class="bribe-heat-outer">
+              <div class="bribe-heat-inner" id="bribeHeatBar"></div>
+              <div class="bribe-heat-text" id="bribeHeatText">Heat: 0%</div>
+            </div>
+            <button class="bribe-btn" id="bribeBtn">PAY BRIBE</button>
+            <div class="bribe-note" id="bribeNote">Knocks 25 off your heat. Cops don't come cheap when you're rich.</div>
+          </div>
+        </div>
+      </div>
+      <div class="winapp" id="win-log" data-winid="log">
+        <div class="winapp-title"><span class="winapp-name">Word on the Street</span><span class="winapp-controls"><button data-action="min">_</button><button data-action="close">X</button></span></div>
+        <div class="winapp-body"><div class="listbox" id="logList"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="groupbox hidden" id="achPanel">
+    <span class="legend">Achievements</span>
+    <div class="listbox" id="achList"></div>
+  </div>
+
+</div>
+
+<div class="taskbar" id="taskbar"></div>
+<div class="toast" id="toast"></div>
+<div class="notify-stack" id="notifyStack"></div>
+
+<script>
+/* ---------------------------------------------------------
+   TRAP LINE — real-time build
+   - Day = 30s. Crew acts every 10s on a shared rulebook.
+   - Heat 100% = full trading lockout until the next day.
+   - Bribes (manual, or auto with the upgrade) manage heat.
+   --------------------------------------------------------- */
+
+const SAVE_KEY = 'trapline_save_v3';
+const DAY_MS = 30000;
+const CREW_TICK_MS = 10000;
+function speedMult(){ return state && state.turbo ? 10 : 1; }
+function dayMs(){ return DAY_MS / speedMult(); }
+function crewTickMs(){ return CREW_TICK_MS / speedMult(); }
+const BRIBE_HEAT_RELIEF = 25;
+const AUTO_BRIBE_THRESHOLD = 75;
+
+// ---- World data -------------------------------------------------
+const AREAS = [
+  { id:'brooklyn', name:'Brooklyn', travelCost:0,
+    spots:[{id:'bushwick',name:'Bushwick'},{id:'flatbush',name:'Flatbush'},{id:'coney',name:'Coney Island'}] },
+  { id:'queens', name:'Queens', travelCost:0,
+    spots:[{id:'astoria',name:'Astoria'},{id:'jamaica',name:'Jamaica'},{id:'flushing',name:'Flushing'}] },
+  { id:'manhattan', name:'Manhattan', travelCost:0,
+    spots:[{id:'harlem',name:'Harlem'},{id:'lowereast',name:'Lower East Side'}] },
+  { id:'bronx', name:'The Bronx', travelCost:0,
+    spots:[{id:'fordham',name:'Fordham'},{id:'huntspoint',name:'Hunts Point'}] },
+  { id:'statenisland', name:'Staten Island', travelCost:0,
+    spots:[{id:'stgeorge',name:'St. George'}] },
+  { id:'miami', name:'Miami', travelCost:150,
+    spots:[{id:'southbeach',name:'South Beach'},{id:'littlehavana',name:'Little Havana'}] },
+  { id:'losangeles', name:'Los Angeles', travelCost:220,
+    spots:[{id:'compton',name:'Compton'},{id:'hollywood',name:'Hollywood'}] },
+  { id:'chicago', name:'Chicago', travelCost:200,
+    spots:[{id:'southside',name:'South Side'},{id:'theloop',name:'The Loop'}] },
+  { id:'mexicocity', name:'Mexico City', travelCost:450,
+    spots:[{id:'tepito',name:'Tepito'},{id:'polanco',name:'Polanco'}] },
+  { id:'amsterdam', name:'Amsterdam', travelCost:600,
+    spots:[{id:'dewallen',name:'De Wallen'},{id:'bijlmer',name:'Bijlmer'}] },
+  { id:'berlin', name:'Berlin', travelCost:700,
+    spots:[{id:'kreuzberg',name:'Kreuzberg'},{id:'friedrichshain',name:'Friedrichshain'}] },
+  { id:'london', name:'London', travelCost:750,
+    spots:[{id:'sohoLDN',name:'Soho'},{id:'peckham',name:'Peckham'}] },
+  { id:'tokyo', name:'Tokyo', travelCost:900,
+    spots:[{id:'shibuya',name:'Shibuya'},{id:'kabukicho',name:'Kabukicho'}] },
+  { id:'sydney', name:'Sydney', travelCost:850,
+    spots:[{id:'kingscross',name:'Kings Cross'},{id:'bondi',name:'Bondi'}] }
+];
+
+// Geography for the "condense as you conquer" travel UI: once every area
+// in a country is owned, the Move panel collapses them into one entry;
+// once every country in a continent is owned, it collapses further.
+const COUNTRIES = [
+  { id:'usa',         name:'United States',  continent:'North America', areaIds:['brooklyn','queens','manhattan','bronx','statenisland','miami','losangeles','chicago'] },
+  { id:'mexico',      name:'Mexico',         continent:'North America', areaIds:['mexicocity'] },
+  { id:'netherlands', name:'Netherlands',    continent:'Europe',        areaIds:['amsterdam'] },
+  { id:'germany',     name:'Germany',        continent:'Europe',        areaIds:['berlin'] },
+  { id:'uk',          name:'United Kingdom', continent:'Europe',        areaIds:['london'] },
+  { id:'japan',       name:'Japan',          continent:'Asia',          areaIds:['tokyo'] },
+  { id:'australia',   name:'Australia',      continent:'Oceania',       areaIds:['sydney'] }
+];
+function countryOfArea(areaId){ return COUNTRIES.find(c=>c.areaIds.includes(areaId)); }
+function isCountryComplete(country){ return country.areaIds.every(id=>isAreaUnlocked(id)); }
+function continentCountries(continent){ return COUNTRIES.filter(c=>c.continent===continent); }
+function isContinentComplete(continent){ return continentCountries(continent).every(isCountryComplete); }
+function hubSpotForCountry(country){ const area = getArea(country.areaIds[0]); return {...area.spots[0], areaId:area.id}; }
+function hubSpotForContinent(continent){ return hubSpotForCountry(continentCountries(continent)[0]); }
+
+const AREA_BIAS = {
+  manhattan:   { coke:1.7 },
+  bronx:       { crack:0.7 },
+  miami:       { coke:0.75 },
+  losangeles:  { peptides:1.4, glp1:1.3 },
+  chicago:     { heroin:0.8 },
+  mexicocity:  { fent:0.6, coke:0.8 },
+  amsterdam:   { weed:0.5, shrooms:0.7 },
+  berlin:      { xtc:0.65 },
+  london:      { pills:1.25 },
+  tokyo:       { peptides:1.3, glp1:1.3 },
+  sydney:      { weed:0.8 }
+};
+const AREA_BIAS_REASON = {
+  manhattan:  'Manhattan money runs a premium coke market.',
+  bronx:      'The Bronx has always run cheap crack.',
+  miami:      'Cocaine Cowboys country — coke stays cheap.',
+  losangeles: 'LA gym culture pays premium for peptides & GLP-1s.',
+  chicago:    "Chicago's heroin corridor keeps prices down.",
+  mexicocity: 'Closer to the source — cheaper here.',
+  amsterdam:  'Coffee-shop country — weed & shrooms dirt cheap.',
+  berlin:     "Berlin's techno scene keeps ecstasy flowing cheap.",
+  london:     'Everything costs more in London, pills included.',
+  tokyo:      "Tokyo's biohacking scene pays premium for peptides & GLP-1s.",
+  sydney:     "Sydney's laid-back scene keeps weed cheap."
+};
+
+function allSpots(){
+  const out = [];
+  AREAS.forEach(a => a.spots.forEach(s => out.push({...s, areaId:a.id})));
+  return out;
+}
+function getSpot(id){ return allSpots().find(s=>s.id===id); }
+function getArea(id){ return AREAS.find(a=>a.id===id); }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+// ---- Products -----------------------------------------------------
+const PRODUCTS = [
+  {id:'weed',       name:'Weed',        base:55,   vol:0.35, heat:1},
+  {id:'pills',      name:'Pills',       base:35,   vol:0.30, heat:1},
+  {id:'creatine',   name:'Creatine',    base:32,   vol:0.12, heat:0, tagline:'monohydrate, obviously'},
+  {id:'preworkout', name:'Pre-Workout', base:42,   vol:0.15, heat:0, tagline:'"one scoop" lies'},
+  {id:'xtc',        name:'Ecstasy',     base:28,   vol:0.35, heat:1},
+  {id:'peptides',   name:'Peptides',    base:190,  vol:0.25, heat:0, tagline:'BPC-157 szn'},
+  {id:'shrooms',    name:'Shrooms',     base:18,   vol:0.30, heat:1},
+  {id:'lsd',        name:'LSD',         base:22,   vol:0.35, heat:1},
+  {id:'crack',      name:'Crack',       base:110,  vol:0.40, heat:2},
+  {id:'glp1',       name:'GLP-1s',      base:950,  vol:0.30, heat:0, tagline:"everyone's auntie wants some"},
+  {id:'meth',       name:'Meth',        base:620,  vol:0.45, heat:2},
+  {id:'heroin',     name:'Heroin',      base:900,  vol:0.45, heat:3},
+  {id:'coke',       name:'Coke',        base:1250, vol:0.45, heat:3},
+  {id:'fent',       name:'Fent',        base:1550, vol:0.50, heat:3}
+];
+function prodOf(id){ return PRODUCTS.find(p=>p.id===id); }
+function nameOf(id){ const p=prodOf(id); return p?p.name:id; }
+
+// ---- Staff tiers ------------------------------------------------------
+const STAFF_TIERS = [
+  {id:'kid',        name:'Street Kid', baseCost:300,    wage:20,   capacity:15,  heatMult:1.5},
+  {id:'runner',     name:'Runner',     baseCost:1200,   wage:60,   capacity:30,  heatMult:1.2},
+  {id:'dealer',     name:'Dealer',     baseCost:3500,   wage:150,  capacity:55,  heatMult:1.0},
+  {id:'lieutenant', name:'Lieutenant', baseCost:9000,   wage:350,  capacity:90,  heatMult:0.8},
+  {id:'enforcer',   name:'Enforcer',   baseCost:22000,  wage:700,  capacity:140, heatMult:0.6},
+  {id:'capo',       name:'Capo',       baseCost:55000,  wage:1500, capacity:220, heatMult:0.5},
+  {id:'underboss',  name:'Underboss',  baseCost:130000, wage:3200, capacity:350, heatMult:0.4}
+];
+function tierOf(id){ return STAFF_TIERS.find(t=>t.id===id); }
+
+// ---- Unlock ladder ------------------------------------------------------
+const LOCATION_UNLOCKS = [
+  {id:'manhattan',    cost:2000,   products:['xtc','peptides','preworkout']},
+  {id:'bronx',        cost:7500,   products:['shrooms','lsd']},
+  {id:'statenisland', cost:15000,  products:['crack','glp1']},
+  {id:'miami',        cost:30000,  products:['meth']},
+  {id:'losangeles',   cost:60000,  products:['heroin']},
+  {id:'chicago',      cost:120000, products:['coke']},
+  {id:'mexicocity',   cost:250000, products:['fent']},
+  {id:'amsterdam',    cost:500000, products:[]},
+  {id:'berlin',       cost:750000,   products:[]},
+  {id:'london',       cost:1000000,  products:[]},
+  {id:'tokyo',        cost:1500000,  products:[]},
+  {id:'sydney',       cost:2000000,  products:[]}
+];
+
+// Crew tiers are now a separate purchase, priced at what they used to
+// cost bundled with their matching territory.
+const STAFF_UNLOCKS = [
+  {tierId:'kid',        cost:2000},
+  {tierId:'runner',     cost:7500},
+  {tierId:'dealer',     cost:15000},
+  {tierId:'lieutenant', cost:30000},
+  {tierId:'enforcer',   cost:60000},
+  {tierId:'capo',       cost:120000},
+  {tierId:'underboss',  cost:250000}
+];
+
+const UPGRADES = [
+  {id:'coat',      name:'Bigger Trenchcoat',  desc:'+50 carry capacity for you.',                     baseCost:500,   mult:1.8, max:99},
+  {id:'crewcap',   name:'Crew Kit',           desc:'+25% carry capacity for all crew.',               baseCost:1000,  mult:2.0, max:10},
+  {id:'connect',   name:'Supply Connect',     desc:'You buy 5% cheaper (stacks, max 5).',             baseCost:2000,  mult:2.5, max:5},
+  {id:'crewconn',  name:'Crew Connect',       desc:'Crew buys 5% cheaper (stacks, max 5).',           baseCost:3000,  mult:2.5, max:5},
+  {id:'autobribe', name:'Cop on the Payroll', desc:`Auto-pays a bribe whenever heat passes ${AUTO_BRIBE_THRESHOLD}%.`, baseCost:7500, mult:1, max:1},
+  {id:'lawyer',    name:'Lawyers on the Payroll', desc:'Halves the cost of every bribe.', baseCost:10000, mult:1, max:1},
+  {id:'pricecontrol', name:'Price Control Board', desc:'Set your own factory prices, paired with Marketing to manage demand.', baseCost:50000, mult:1, max:1}
+];
+
+// ---- Factories (unlocked once Amsterdam is owned) --------------------------
+// Passive production per product. Sells at standard market price until the
+// Price Control Board is bought (needs 10 factories total), after which you
+// can set your own price per product — but pushing price up without
+// matching Marketing investment means a chunk of the day's output goes unsold.
+const FACTORY_UNITS_PER_DAY = 6;
+const FACTORY_TOTAL_FOR_PRICING = 10;
+const PRICING_UPGRADE_ID = 'pricecontrol';
+function factoryBuildCost(productId, owned){
+  const p = prodOf(productId);
+  return Math.round(p.base * 8 * Math.pow(1.6, owned));
+}
+function marketingCost(productId, level){
+  const p = prodOf(productId);
+  return Math.round(p.base * 20 * Math.pow(1.7, level));
+}
+function totalFactories(){
+  return Object.values(state.factories||{}).reduce((a,b)=>a+b,0);
+}
+function factoriesUnlocked(){ return isAreaUnlocked('amsterdam'); }
+function pricingUnlocked(){ return upgCount(PRICING_UPGRADE_ID) > 0; }
+// Demand curve: at or below standard price everything sells. Above it,
+// each Marketing level buys more headroom before demand collapses.
+function demandFraction(mult, marketingLevel){
+  if(mult <= 1) return 1;
+  const tolerance = 1 + marketingLevel*0.5;
+  const excess = (mult - 1) / tolerance;
+  return Math.max(0, Math.min(1, 1 - excess));
+}
+
+const NYC_AREA_IDS = ['brooklyn','queens','manhattan','bronx','statenisland'];
+
+// ---- Achievements ---------------------------------------------------------
+// check() reads the live `state` global. Once unlocked, an achievement
+// stays unlocked forever even if the underlying condition stops being true.
+const ACHIEVEMENTS = [
+  {id:'first_trade',   name:'First Trade',      desc:'Buy or sell something for the first time.',
+    check: () => (state.stats.tradesMade||0) >= 1},
+  {id:'full_crew',      name:'Full Crew',        desc:'Have at least one of every crew tier on the payroll at once.',
+    check: () => STAFF_TIERS.every(t => state.staff.some(st => st.tierId===t.id))},
+  {id:'kingpin',        name:'Kingpin',          desc:'Hire an Underboss.',
+    check: () => state.staff.some(st => st.tierId==='underboss')},
+  {id:'five_boroughs',  name:'Five Boroughs',    desc:'Personally visit every spot in New York City.',
+    check: () => allSpots().filter(s=>NYC_AREA_IDS.includes(s.areaId)).every(s=>(state.stats.visitedSpots||[]).includes(s.id))},
+  {id:'world_traveler', name:'World Traveler',   desc:'Personally visit every spot on the map.',
+    check: () => allSpots().every(s=>(state.stats.visitedSpots||[]).includes(s.id))},
+  {id:'territory_baron',name:'Territory Baron',  desc:'Own every territory.',
+    check: () => LOCATION_UNLOCKS.every(u=>isAreaUnlocked(u.id))},
+  {id:'six_figures',    name:'Six Figures',      desc:'Earn $100,000 in lifetime trade revenue.',
+    check: () => (state.stats.totalEarned||0) >= 100000},
+  {id:'millionaire',    name:'Millionaire',      desc:'Earn $1,000,000 in lifetime trade revenue.',
+    check: () => (state.stats.totalEarned||0) >= 1000000},
+  {id:'survivor',       name:'Survivor',         desc:'Get busted by the cops and live to keep dealing.',
+    check: () => (state.stats.bustsSurvived||0) >= 1},
+  {id:'greased_palms',  name:'Greased Palms',    desc:'Pay your first bribe.',
+    check: () => (state.stats.bribesPaid||0) >= 1},
+  {id:'rock_bottom',    name:'Rock Bottom',      desc:'Go broke and take the one-time bailout.',
+    check: () => !!state.usedBailout},
+  {id:'industrialist',  name:'Industrialist',    desc:'Own 10 factories.',
+    check: () => totalFactories() >= 10}
+];
+
+// ---- State -------------------------------------------------------------
+let state = null;
+
+function defaultRule(productId){
+  const p = prodOf(productId);
+  return { buyBelow: Math.round(p.base*0.85), sellAbove: Math.round(p.base*1.15) };
+}
+
+function freshState(){
+  const s = {
+    day:1, dayStart:Date.now(), cash:500, maxCashSeen:500,
+    bagCapacity:100, bag:{}, heat:0, lockedOut:false,
+    locationId:'bushwick', prices:{}, log:[],
+    staff:[],
+    crewRules:{},
+    unlockedAreas:['brooklyn','queens'],
+    unlockedProducts:['weed','pills','creatine'],
+    unlockedStaff:[],
+    upgrades:{},
+    lastCrewTick:Date.now(),
+    usedBailout:false,
+    stats:{ totalEarned:0, tradesMade:0, bustsSurvived:0, bribesPaid:0, visitedSpots:['bushwick'] },
+    notified:{ territory:[], staff:[], upgrade:[] },
+    achievementsUnlocked:[],
+    factories:{},        // productId -> count
+    factoryPrice:{},      // productId -> price multiplier (default 1)
+    marketing:{},         // productId -> marketing level 0-4
+    notifiedFactories:false,
+    closedWindows:[],
+    minimizedWindows:[],
+    usedFreeKidsEgg:false
+  };
+  s.unlockedProducts.forEach(pid=>{ s.crewRules[pid] = defaultRule(pid); });
+  return s;
+}
+function bagTotal(){ return Object.values(state.bag).reduce((a,b)=>a+b,0); }
+function crewBagTotal(st){ return Object.values(st.bag).reduce((a,b)=>a+b,0); }
+function isAreaUnlocked(areaId){ return state.unlockedAreas.includes(areaId); }
+function unlockedSpots(){ return allSpots().filter(s=>isAreaUnlocked(s.areaId)); }
+function unlockedProducts(){ return PRODUCTS.filter(p=>state.unlockedProducts.includes(p.id)); }
+function upgCount(id){ return state.upgrades[id]||0; }
+function playerBuyDiscount(){ return 1 - 0.05*upgCount('connect'); }
+function crewBuyDiscount(){ return 1 - 0.05*upgCount('crewconn'); }
+function crewCapMult(){ return 1 + 0.25*upgCount('crewcap'); }
+function ensureRules(){
+  state.unlockedProducts.forEach(pid=>{
+    if(!state.crewRules[pid]) state.crewRules[pid] = defaultRule(pid);
+  });
+}
+
+// ---- Shared visibility rules (used by rendering AND reveal notifications) ----
+function territoryVisible(u, idx){
+  if(isAreaUnlocked(u.id)) return true;
+  const prevOwned = idx===0 || isAreaUnlocked(LOCATION_UNLOCKS[idx-1].id);
+  return prevOwned && (state.maxCashSeen||0) >= u.cost;
+}
+function staffTierVisible(u, idx){
+  if(state.unlockedStaff.includes(u.tierId)) return true;
+  const prevOwned = idx===0 || state.unlockedStaff.includes(STAFF_UNLOCKS[idx-1].tierId);
+  return prevOwned && (state.maxCashSeen||0) >= u.cost;
+}
+function upgradeVisible(u, idx){
+  if(upgCount(u.id) > 0) return true;
+  const prevOwned = idx===0 || upgCount(UPGRADES[idx-1].id) > 0;
+  return prevOwned && (state.maxCashSeen||0) >= u.baseCost;
+}
+
+// ---- Heat & lockout ---------------------------------------------------------
+function addHeat(amount){
+  state.heat = Math.min(100, state.heat + amount);
+  if(state.heat >= 100 && !state.lockedOut){
+    state.lockedOut = true;
+    log('Heat hit 100% — every connect has gone quiet. No trading until tomorrow.', 'warn');
+    toast('TOO HOT — trading frozen until tomorrow.');
+    renderAll();
+  }
+  maybeAutoBribe();
+}
+function bribeCost(){
+  // scales with wealth so it stays meaningful late-game
+  const base = Math.max(250, Math.round(state.cash * 0.02));
+  const discount = upgCount('lawyer') > 0 ? 0.5 : 1;
+  return Math.max(100, Math.round(base * discount));
+}
+function payBribe(auto){
+  const cost = bribeCost();
+  if(state.cash < cost){ if(!auto) toast('Not enough cash for the bribe.'); return false; }
+  state.cash -= cost;
+  state.heat = Math.max(0, state.heat - BRIBE_HEAT_RELIEF);
+  state.stats.bribesPaid += 1;
+  log(`${auto?'Your cop on the payroll took':'Paid'} a $${cost.toLocaleString()} bribe. Heat -${BRIBE_HEAT_RELIEF}.`, null);
+  renderStatus(); renderBribe(); renderUnlocks();
+  save(true);
+  return true;
+}
+function maybeAutoBribe(){
+  if(upgCount('autobribe') > 0 && !state.lockedOut && state.heat >= AUTO_BRIBE_THRESHOLD){
+    payBribe(true);
+  }
+}
+
+// ---- Prices --------------------------------------------------------------
+function rollPricesFor(areaId){
+  const bias = AREA_BIAS[areaId] || {};
+  const table = {};
+  PRODUCTS.forEach(p=>{
+    const mult = bias[p.id] || 1;
+    const baseline = p.base * mult;
+    const swing = (Math.random()*2 - 1) * p.vol;
+    let price = Math.round(baseline * (1 + swing));
+    let event = null;
+    const roll = Math.random();
+    if(roll < 0.08){
+      price = Math.round(price * 0.55);
+      event = pick(['Big shipment just landed.','Desperate supplier dumping stock.']);
+    } else if(roll < 0.14){
+      price = Math.round(price * 2.1);
+      event = pick(['Event in town — heavy demand.','Supply dried up.','Cops leaned on the connects.']);
+    }
+    const biasReason = mult !== 1 ? AREA_BIAS_REASON[areaId] : null;
+    table[p.id] = {
+      price: Math.max(price, 3),
+      baseline: Math.max(Math.round(baseline), 3),
+      event: [biasReason, event].filter(Boolean).join(' ') || null
+    };
+  });
+  return table;
+}
+function rollAllPrices(){
+  unlockedSpots().forEach(s=>{ state.prices[s.id] = rollPricesFor(s.areaId); });
+}
+function seedMissingPrices(){
+  unlockedSpots().forEach(s=>{ if(!state.prices[s.id]) state.prices[s.id] = rollPricesFor(s.areaId); });
+}
+
+// ---- Logging & persistence -------------------------------------------------
+function log(msg, cls){ state.log.unshift({msg, cls, day:state.day}); state.log = state.log.slice(0,50); renderLog(); }
+function save(silent){ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); if(!silent) toast('Saved.'); }
+function load(){
+  const raw = localStorage.getItem(SAVE_KEY);
+  if(raw){ try{ state = JSON.parse(raw); return true; }catch(e){} }
+  return false;
+}
+function migrateStaff(){
+  state.crewRules = state.crewRules || {};
+  state.staff.forEach(st=>{
+    if(st.bag === undefined){
+      st.bag = {};
+      if(st.productId && st.stock > 0) st.bag[st.productId] = st.stock;
+      if(st.productId && st.buyBelow !== undefined && !state.crewRules[st.productId]){
+        state.crewRules[st.productId] = { buyBelow:st.buyBelow, sellAbove:st.sellAbove };
+      }
+      delete st.productId; delete st.stock; delete st.buyBelow; delete st.sellAbove;
+    }
+  });
+  // refund the removed Lay Low upgrade if an old save had bought it
+  if(state.upgrades && state.upgrades.laylow) delete state.upgrades.laylow;
+  if(state.lockedOut === undefined) state.lockedOut = false;
+  if(state.maxCashSeen === undefined) state.maxCashSeen = Math.max(state.cash, 500);
+  if(state.usedBailout === undefined) state.usedBailout = false;
+  if(!state.stats) state.stats = { totalEarned:0, tradesMade:0, bustsSurvived:0, bribesPaid:0, visitedSpots:[state.locationId] };
+  if(!state.stats.visitedSpots) state.stats.visitedSpots = [state.locationId];
+  if(!state.stats.visitedSpots.includes(state.locationId)) state.stats.visitedSpots.push(state.locationId);
+  if(!state.notified) state.notified = { territory:[], staff:[], upgrade:[] };
+  if(!state.achievementsUnlocked) state.achievementsUnlocked = [];
+  if(!state.factories) state.factories = {};
+  if(!state.factoryPrice) state.factoryPrice = {};
+  if(!state.marketing) state.marketing = {};
+  if(state.notifiedFactories === undefined) state.notifiedFactories = isAreaUnlocked('amsterdam');
+  if(!state.closedWindows) state.closedWindows = [];
+  if(!state.minimizedWindows) state.minimizedWindows = [];
+  if(state.usedFreeKidsEgg === undefined) state.usedFreeKidsEgg = false;
+  ensureRules();
+}
+function resetGame(){
+  localStorage.removeItem(SAVE_KEY);
+  state = freshState();
+  seedMissingPrices();
+  silentlyMarkExistingReveals();
+  log('New route started. Two boroughs, three products, no crew.', null);
+  renderAll();
+}
+
+// ---- Day cycle -----------------------------------------------------------------
+function endOfDay(){
+  state.day += 1;
+  state.dayStart = Date.now();
+  rollAllPrices();
+  let wages = 0;
+  state.staff.forEach(st=>{ wages += tierOf(st.tierId).wage; });
+  if(wages>0){
+    state.cash -= wages;
+    log(`Paid the crew $${wages.toLocaleString()} in wages.`, null);
+  }
+  runFactories();
+  if(state.lockedOut){
+    state.lockedOut = false;
+    state.heat = 60;
+    log('A new day. Things cooled off enough to get back to work — heat at 60%.', 'good');
+  } else {
+    state.heat = Math.max(0, state.heat - (4 + Math.random()*4));
+  }
+  maybeBust();
+  renderAll();
+  save(true);
+}
+
+function runFactories(){
+  const productIds = Object.keys(state.factories).filter(pid=>state.factories[pid]>0);
+  if(productIds.length===0) return;
+  let totalRevenue = 0, totalUnits = 0;
+  productIds.forEach(pid=>{
+    const count = state.factories[pid];
+    const p = prodOf(pid);
+    const produced = count * FACTORY_UNITS_PER_DAY;
+    const mult = pricingUnlocked() ? (state.factoryPrice[pid]||1) : 1;
+    const sellPrice = Math.round(p.base * mult);
+    const frac = pricingUnlocked() ? demandFraction(mult, state.marketing[pid]||0) : 1;
+    const unitsSold = Math.round(produced * frac);
+    const revenue = unitsSold * sellPrice;
+    state.cash += revenue;
+    state.stats.totalEarned += revenue;
+    totalRevenue += revenue;
+    totalUnits += unitsSold;
+    state.heat = Math.min(100, state.heat + p.heat * count * 0.3);
+  });
+  if(totalRevenue > 0){
+    log(`Factories shipped ${totalUnits} units today for $${totalRevenue.toLocaleString()}.`, 'good');
+  }
+}
+
+function maybeBust(){
+  const chance = state.heat / 300;
+  if(Math.random() < chance){
+    const lossFrac = 0.3 + Math.random()*0.4;
+    Object.keys(state.bag).forEach(pid=>{
+      const lost = Math.round(state.bag[pid] * lossFrac);
+      if(lost > 0) state.bag[pid] -= lost;
+    });
+    state.staff.forEach(st=>{
+      Object.keys(st.bag).forEach(pid=>{
+        st.bag[pid] = Math.round(st.bag[pid] * (1-lossFrac));
+        if(st.bag[pid]<=0) delete st.bag[pid];
+      });
+    });
+    const fine = Math.min(state.cash, Math.round(Math.max(state.cash,0) * (0.1+Math.random()*0.15)));
+    state.cash -= fine;
+    state.heat = Math.max(0, state.heat - 40);
+    state.stats.bustsSurvived += 1;
+    log(`Cops ran up on the operation. Product seized, paid a $${fine.toLocaleString()} "fine."`, 'warn');
+    toast('BUSTED — took a loss.');
+  }
+}
+
+// ---- Crew ---------------------------------------------------------------------
+function hireCost(tier){
+  const owned = state.staff.filter(s=>s.tierId===tier.id).length;
+  return Math.round(tier.baseCost * Math.pow(1.6, owned));
+}
+// ---- Easter egg: File menu unlocks once you've got 2 Street Kids ------------
+function kidCount(){ return state.staff.filter(s=>s.tierId==='kid').length; }
+function updateFileMenu(){
+  const opt = document.getElementById('freeKidsOption');
+  const placeholder = document.getElementById('fileMenuPlaceholder');
+  if(!opt || !placeholder) return;
+  if(state.usedFreeKidsEgg){
+    opt.style.display = 'none';
+    placeholder.style.display = 'block';
+    placeholder.textContent = 'Already claimed — thanks for playing.';
+  } else if(kidCount() >= 2){
+    opt.style.display = 'block';
+    placeholder.style.display = 'none';
+  } else {
+    opt.style.display = 'none';
+    placeholder.style.display = 'block';
+    placeholder.textContent = 'Nice find, check back when you have a couple of street kids';
+  }
+}
+function grantFreeKids(){
+  if(state.usedFreeKidsEgg || kidCount() < 2) return;
+  for(let i=0;i<5;i++){
+    state.staff.push({ id:'s'+Date.now()+Math.floor(Math.random()*10000)+i, tierId:'kid', bag:{}, lastAction:'Fresh off the bus, ready to work.' });
+  }
+  state.usedFreeKidsEgg = true;
+  log('A guy who owed you one dropped off 5 Street Kids, free of charge.', 'good');
+  toast('Easter egg found! +5 free Street Kids.');
+  document.getElementById('fileDropdown').classList.add('hidden');
+  renderAll(); save(true);
+}
+
+function hireStaff(tierId){
+  const tier = tierOf(tierId);
+  if(!tier || !state.unlockedStaff.includes(tierId)){ toast('Not unlocked yet — see Unlocks.'); return; }
+  const cost = hireCost(tier);
+  if(cost > state.cash){ toast("Can't afford that hire."); return; }
+  state.cash -= cost;
+  state.staff.push({
+    id:'s'+Date.now()+Math.floor(Math.random()*1000),
+    tierId, bag:{}, lastAction:'Waiting for the first run…'
+  });
+  log(`Brought on a new ${tier.name} for $${cost.toLocaleString()}.`, 'good');
+  renderAll(); save(true);
+}
+function dismissOneOfTier(tierId){
+  // let go the member of this tier carrying the least
+  const members = state.staff.filter(s=>s.tierId===tierId);
+  if(members.length===0) return;
+  members.sort((a,b)=>crewBagTotal(a)-crewBagTotal(b));
+  const st = members[0];
+  Object.keys(st.bag).forEach(pid=>{
+    const room = Math.max(0, state.bagCapacity - bagTotal());
+    const back = Math.min(st.bag[pid], room);
+    if(back>0) state.bag[pid] = (state.bag[pid]||0) + back;
+  });
+  state.staff = state.staff.filter(s=>s.id!==st.id);
+  log(`Let a ${tierOf(tierId).name} go.`, null);
+  renderAll(); save(true);
+}
+function setRule(pid, field, val){
+  const rule = state.crewRules[pid];
+  if(!rule) return;
+  rule[field] = val;
+  if(rule.buyBelow > rule.sellAbove){
+    if(field==='buyBelow') rule.sellAbove = rule.buyBelow; else rule.buyBelow = rule.sellAbove;
+  }
+  updateRuleVisual(pid);
+  save(true);
+}
+
+function crewTick(){
+  if(state.staff.length===0) return;
+  if(state.lockedOut){
+    state.staff.forEach(st=>{ st.lastAction = 'Laying low — everything is too hot.'; });
+    renderCrew();
+    return;
+  }
+  const spots = unlockedSpots();
+  state.staff.forEach(st=>{
+    const tier = tierOf(st.tierId);
+    const spot = pick(spots);
+    const table = state.prices[spot.id];
+    if(!table) return;
+    const cap = Math.round(tier.capacity * crewCapMult());
+    const actions = [];
+
+    Object.keys(st.bag).forEach(pid=>{
+      const qty = st.bag[pid];
+      const rule = state.crewRules[pid];
+      const info = table[pid];
+      if(!qty || !rule || !info) return;
+      if(info.price >= rule.sellAbove){
+        const revenue = info.price * qty;
+        state.cash += revenue;
+        state.stats.totalEarned += revenue;
+        delete st.bag[pid];
+        actions.push(`sold ${qty} ${nameOf(pid)} @$${info.price.toLocaleString()}`);
+        log(`${tier.name} offloaded ${qty} ${nameOf(pid)} in ${spot.name} for $${revenue.toLocaleString()}.`, 'good');
+        addHeat(prodOf(pid).heat * tier.heatMult * 0.6);
+      }
+    });
+
+    if(state.lockedOut){ st.lastAction = `${spot.name}: sold, then everything went quiet.`; return; }
+
+    let room = cap - crewBagTotal(st);
+    if(room > 0){
+      const deals = [];
+      unlockedProducts().forEach(p=>{
+        const rule = state.crewRules[p.id];
+        const info = table[p.id];
+        if(!rule || !info) return;
+        const buyPrice = Math.round(info.price * crewBuyDiscount());
+        if(buyPrice <= rule.buyBelow){
+          deals.push({ pid:p.id, buyPrice, depth: buyPrice / rule.buyBelow });
+        }
+      });
+      deals.sort((a,b)=>a.depth-b.depth);
+      for(const deal of deals){
+        if(room<=0 || state.lockedOut) break;
+        const affordable = Math.floor(state.cash / deal.buyPrice);
+        const qty = Math.min(room, affordable);
+        if(qty>0){
+          state.cash -= qty * deal.buyPrice;
+          st.bag[deal.pid] = (st.bag[deal.pid]||0) + qty;
+          room -= qty;
+          actions.push(`bought ${qty} ${nameOf(deal.pid)} @$${deal.buyPrice.toLocaleString()}`);
+          addHeat(prodOf(deal.pid).heat * tier.heatMult * 0.4);
+        }
+      }
+    }
+
+    st.lastAction = actions.length
+      ? `${spot.name}: ${actions.join('; ')}`
+      : `Checked ${spot.name} — nothing matched the rules.`;
+  });
+  renderStatus(); renderCrew(); renderBribe(); renderUnlocks(); renderHire(); renderFactories();
+  save(true);
+}
+
+// ---- Unlocks shop ----------------------------------------------------------------
+// ---- Factories ---------------------------------------------------------------
+function buildFactory(productId){
+  if(!factoriesUnlocked()){ toast('Factories need Amsterdam.'); return; }
+  const owned = state.factories[productId]||0;
+  const cost = factoryBuildCost(productId, owned);
+  if(state.cash < cost){ toast('Not enough cash.'); return; }
+  state.cash -= cost;
+  state.factories[productId] = owned+1;
+  if(!(productId in state.factoryPrice)) state.factoryPrice[productId] = 1;
+  if(!(productId in state.marketing)) state.marketing[productId] = 0;
+  log(`Built a ${nameOf(productId)} factory. Paid $${cost.toLocaleString()}.`, 'good');
+  renderAll(); save(true);
+}
+function buyMarketing(productId){
+  const level = state.marketing[productId]||0;
+  if(level>=4){ toast('Marketing maxed for this product.'); return; }
+  const cost = marketingCost(productId, level);
+  if(state.cash < cost){ toast('Not enough cash.'); return; }
+  state.cash -= cost;
+  state.marketing[productId] = level+1;
+  log(`Ran a marketing push for ${nameOf(productId)}. Level ${level+1}.`, 'good');
+  renderAll(); save(true);
+}
+function setFactoryPrice(productId, mult){
+  state.factoryPrice[productId] = mult;
+  save(true);
+}
+function buyPriceControl(){
+  if(totalFactories() < FACTORY_TOTAL_FOR_PRICING){ toast(`Need ${FACTORY_TOTAL_FOR_PRICING} factories first.`); return; }
+  const upg = UPGRADES.find(u=>u.id===PRICING_UPGRADE_ID);
+  if(upgCount(PRICING_UPGRADE_ID) > 0) return;
+  const cost = upgradeCost(upg);
+  if(state.cash < cost){ toast('Not enough cash.'); return; }
+  state.cash -= cost;
+  state.upgrades[PRICING_UPGRADE_ID] = 1;
+  log('Bought the Price Control Board. Factory prices and marketing are yours to run now.', 'good');
+  toast('Price Control Board online!');
+  renderAll(); save(true);
+}
+
+function grabBailout(){
+  if(state.usedBailout || state.cash >= 0) return;
+  const grant = -state.cash + 10000;
+  state.cash += grant;
+  state.usedBailout = true;
+  log(`Found a bag of cash on the floor. +$${grant.toLocaleString()} — debt cleared with $10,000 to spare.`, 'good');
+  toast('Found a bag of cash!');
+  renderAll(); save(true);
+}
+function buyLocationUnlock(areaId){
+  const u = LOCATION_UNLOCKS.find(l=>l.id===areaId);
+  if(!u || isAreaUnlocked(areaId)) return;
+  if(state.cash < u.cost){ toast('Not enough cash.'); return; }
+  state.cash -= u.cost;
+  state.unlockedAreas.push(areaId);
+  u.products.forEach(pid=>{
+    if(!state.unlockedProducts.includes(pid)){
+      state.unlockedProducts.push(pid);
+      state.crewRules[pid] = defaultRule(pid);
+    }
+  });
+  seedMissingPrices();
+  const bits = [`${getArea(areaId).name} is open`];
+  if(u.products.length) bits.push(`${u.products.map(nameOf).join(' & ')} hit the street`);
+  log(`Unlocked: ${bits.join(', ')}.`, 'good');
+  toast(`${getArea(areaId).name} unlocked!`);
+  renderAll(); save(true);
+}
+function buyStaffUnlock(tierId){
+  const u = STAFF_UNLOCKS.find(s=>s.tierId===tierId);
+  if(!u || state.unlockedStaff.includes(tierId)) return;
+  if(state.cash < u.cost){ toast('Not enough cash.'); return; }
+  state.cash -= u.cost;
+  state.unlockedStaff.push(tierId);
+  log(`Unlocked: ${tierOf(tierId).name}s are available to hire.`, 'good');
+  toast(`${tierOf(tierId).name}s unlocked!`);
+  renderAll(); save(true);
+}
+function upgradeCost(upg){
+  return Math.round(upg.baseCost * Math.pow(upg.mult, upgCount(upg.id)));
+}
+function buyUpgrade(upgId){
+  const upg = UPGRADES.find(u=>u.id===upgId);
+  if(!upg) return;
+  if(upgCount(upgId) >= upg.max){ toast('Maxed out.'); return; }
+  const cost = upgradeCost(upg);
+  if(state.cash < cost){ toast('Not enough cash.'); return; }
+  state.cash -= cost;
+  state.upgrades[upgId] = upgCount(upgId)+1;
+  if(upgId==='coat'){ state.bagCapacity += 50; log('Trenchcoat upgraded: +50 capacity.', 'good'); }
+  else if(upgId==='autobribe'){ log('Got a cop on the payroll. Bribes now pay themselves when heat runs high.', 'good'); }
+  else { log(`Bought upgrade: ${upg.name}.`, 'good'); }
+  renderAll(); save(true);
+}
+
+// ---- Player actions ------------------------------------------------------------
+function travelTo(spotId){
+  const spot = getSpot(spotId);
+  if(!spot || !isAreaUnlocked(spot.areaId)) return;
+  if(spotId === state.locationId) return;
+  const area = getArea(spot.areaId);
+  const changingArea = getSpot(state.locationId).areaId !== spot.areaId;
+  if(changingArea && area.travelCost > 0){
+    if(state.cash < area.travelCost){ toast(`Need $${area.travelCost} for the trip.`); return; }
+    state.cash -= area.travelCost;
+  }
+  state.locationId = spotId;
+  if(!state.stats.visitedSpots.includes(spotId)) state.stats.visitedSpots.push(spotId);
+  renderAll(); save(true);
+}
+
+function buy(productId, qty){
+  if(state.lockedOut){ toast('Too hot to trade. Wait for tomorrow.'); return; }
+  qty = Math.max(0, Math.floor(qty)||0);
+  if(qty<=0) return;
+  const info = state.prices[state.locationId][productId];
+  if(!info) return;
+  const unitPrice = Math.round(info.price * playerBuyDiscount());
+  const room = state.bagCapacity - bagTotal();
+  if(room<=0){ toast('Trenchcoat is full.'); return; }
+  if(qty > room){ toast(`Only room for ${room} more — bought that.`); qty = room; }
+  let cost = unitPrice * qty;
+  if(cost > state.cash){
+    const affordable = Math.floor(state.cash / unitPrice);
+    if(affordable<=0){ toast('Not enough cash.'); return; }
+    toast(`Only cash for ${affordable} — bought that.`);
+    qty = affordable; cost = unitPrice * qty;
+  }
+  state.cash -= cost;
+  state.bag[productId] = (state.bag[productId]||0) + qty;
+  state.stats.tradesMade += 1;
+  bumpHeat(productId, qty);
+  renderAll(); save(true);
+}
+function sell(productId, qty){
+  if(state.lockedOut){ toast('Too hot to trade. Wait for tomorrow.'); return; }
+  qty = Math.max(0, Math.floor(qty)||0);
+  const have = state.bag[productId]||0;
+  if(qty<=0 || have<=0) return;
+  if(qty > have) qty = have;
+  const info = state.prices[state.locationId][productId];
+  const revenue = info.price * qty;
+  state.bag[productId] -= qty;
+  state.cash += revenue;
+  state.stats.tradesMade += 1;
+  state.stats.totalEarned += revenue;
+  bumpHeat(productId, qty);
+  renderAll(); save(true);
+}
+function bumpHeat(productId, qty){
+  const p = prodOf(productId);
+  if(!p) return;
+  addHeat(p.heat * Math.min(qty, 20) * 0.35);
+}
+
+// ---- Scale helpers ------------------------------------------------------------
+const SCALE_L = 0.4, SCALE_R = 1.6;
+function scalePercent(price, baseline){
+  const ratio = price / baseline;
+  return Math.max(1, Math.min(99, ((ratio - SCALE_L) / (SCALE_R - SCALE_L)) * 100));
+}
+function ruleSliderBounds(productId){
+  const p = prodOf(productId);
+  return { min:Math.max(1,Math.round(p.base*SCALE_L)), max:Math.round(p.base*SCALE_R) };
+}
+
+// ---- Rendering -------------------------------------------------------------------
+let toastTimer = null;
+// ---- Window manager (minimize/close -> taskbar, restore on click) ------------
+const WINDOWS = [
+  {id:'move',       title:'Get Moving'},
+  {id:'market',     title:'Market'},
+  {id:'trenchcoat', title:'Trenchcoat'},
+  {id:'factories',  title:'Factories'},
+  {id:'hire',       title:'Hire Crew'},
+  {id:'crew',       title:'Your Crew'},
+  {id:'rules',      title:'Crew Trading Rules'},
+  {id:'unlocks',    title:'Unlocks'},
+  {id:'bribe',      title:'Grease the Wheels'},
+  {id:'log',        title:'Word on the Street'}
+];
+function hideWindow(winId){
+  if(!state.closedWindows.includes(winId)) state.closedWindows.push(winId);
+  applyWindowVisibility();
+  renderTaskbar();
+  save(true);
+}
+function restoreWindow(winId){
+  state.closedWindows = state.closedWindows.filter(w=>w!==winId);
+  applyWindowVisibility();
+  renderTaskbar();
+  save(true);
+}
+function toggleMinimize(winId){
+  const idx = state.minimizedWindows.indexOf(winId);
+  if(idx===-1) state.minimizedWindows.push(winId); else state.minimizedWindows.splice(idx,1);
+  applyWindowVisibility();
+  save(true);
+}
+function applyWindowVisibility(){
+  WINDOWS.forEach(w=>{
+    const el = document.getElementById('win-'+w.id);
+    if(!el) return;
+    el.classList.toggle('winmin', state.closedWindows.includes(w.id));
+    const collapsed = state.minimizedWindows.includes(w.id);
+    el.classList.toggle('collapsed', collapsed);
+    const minBtn = el.querySelector('.winapp-controls button[data-action="min"]');
+    if(minBtn) minBtn.textContent = collapsed ? '□' : '_';
+  });
+}
+function renderTaskbar(){
+  const wrap = document.getElementById('taskbar');
+  wrap.innerHTML='';
+  const items = state.closedWindows.filter(id=>{
+    if(id==='factories') return factoriesUnlocked(); // don't offer restoring a mechanic you don't have yet
+    return true;
+  });
+  if(items.length===0){
+    wrap.innerHTML = '<span class="taskbar-empty">Close any window (X) and it\'ll show up here to bring back.</span>';
+    return;
+  }
+  items.forEach(id=>{
+    const w = WINDOWS.find(x=>x.id===id);
+    if(!w) return;
+    const btn = document.createElement('button');
+    btn.className='taskbar-btn';
+    btn.textContent = w.title;
+    btn.addEventListener('click', ()=>restoreWindow(id));
+    wrap.appendChild(btn);
+  });
+}
+document.addEventListener('click', (e)=>{
+  const btn = e.target.closest('.winapp-controls button');
+  if(!btn) return;
+  const winEl = btn.closest('.winapp');
+  if(!winEl) return;
+  if(btn.dataset.action === 'close') hideWindow(winEl.dataset.winid);
+  else if(btn.dataset.action === 'min') toggleMinimize(winEl.dataset.winid);
+});
+
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2400);
+}
+
+// ---- Bottom-right notifications (separate from the center-bottom toast) ------
+function notify(msg, cls){
+  const stack = document.getElementById('notifyStack');
+  const card = document.createElement('div');
+  card.className = 'notify-card' + (cls?(' '+cls):'');
+  card.innerHTML = `<b>${cls==='ach' ? 'ACHIEVEMENT UNLOCKED' : 'NEW'}</b>${msg}`;
+  stack.appendChild(card);
+  requestAnimationFrame(()=>card.classList.add('show'));
+  setTimeout(()=>{
+    card.classList.remove('show');
+    setTimeout(()=>card.remove(), 350);
+  }, 5000);
+}
+
+// ---- Reveal notifications: fire once when something newly becomes visible ----
+function checkReveals(){
+  if(!state.notifiedFactories && factoriesUnlocked()){
+    state.notifiedFactories = true;
+    notify(`New mechanic: Factories are open. Build passive production above your crew.`);
+  }
+  LOCATION_UNLOCKS.forEach((u,idx)=>{
+    if(isAreaUnlocked(u.id)) return;
+    if(state.notified.territory.includes(u.id)) return;
+    if(territoryVisible(u, idx)){
+      state.notified.territory.push(u.id);
+      notify(`New territory: ${getArea(u.id).name} now available.`);
+    }
+  });
+  STAFF_UNLOCKS.forEach((u,idx)=>{
+    if(state.unlockedStaff.includes(u.tierId)) return;
+    if(state.notified.staff.includes(u.tierId)) return;
+    if(staffTierVisible(u, idx)){
+      state.notified.staff.push(u.tierId);
+      notify(`New crew: ${tierOf(u.tierId).name} available.`);
+    }
+  });
+  UPGRADES.forEach((u,idx)=>{
+    if(u.id === PRICING_UPGRADE_ID) return;
+    if(upgCount(u.id) > 0) return;
+    if(state.notified.upgrade.includes(u.id)) return;
+    if(upgradeVisible(u, idx)){
+      state.notified.upgrade.push(u.id);
+      notify(`New upgrade: ${u.name} available.`);
+    }
+  });
+}
+// Silently mark whatever's already visible as "seen" so we don't flood
+// notifications for things that were already unlockable before this
+// version existed (called once at boot, before the first render).
+function silentlyMarkExistingReveals(){
+  LOCATION_UNLOCKS.forEach((u,idx)=>{ if(territoryVisible(u,idx) && !state.notified.territory.includes(u.id)) state.notified.territory.push(u.id); });
+  STAFF_UNLOCKS.forEach((u,idx)=>{ if(staffTierVisible(u,idx) && !state.notified.staff.includes(u.tierId)) state.notified.staff.push(u.tierId); });
+  UPGRADES.forEach((u,idx)=>{ if(u.id!==PRICING_UPGRADE_ID && upgradeVisible(u,idx) && !state.notified.upgrade.includes(u.id)) state.notified.upgrade.push(u.id); });
+}
+
+// ---- Achievements ----------------------------------------------------------
+function checkAchievements(){
+  ACHIEVEMENTS.forEach(a=>{
+    if(state.achievementsUnlocked.includes(a.id)) return;
+    if(a.check()){
+      state.achievementsUnlocked.push(a.id);
+      notify(`${a.name} — ${a.desc}`, 'ach');
+      log(`Achievement unlocked: ${a.name}.`, 'good');
+    }
+  });
+}
+
+function renderStatus(){
+  if(state.cash > (state.maxCashSeen||0)) state.maxCashSeen = state.cash;
+  checkAchievements();
+  document.getElementById('cashDisplay').textContent = Math.round(state.cash).toLocaleString();
+  document.getElementById('dayDisplay').textContent = state.day;
+  document.getElementById('heatDisplay').textContent = Math.round(state.heat);
+  document.getElementById('heatLed').classList.toggle('locked', state.lockedOut);
+  const spot = getSpot(state.locationId);
+  document.getElementById('locLine').textContent = `${spot.name}`;
+  document.getElementById('marketLocName').textContent = `${spot.name}, ${getArea(spot.areaId).name}`;
+  document.getElementById('titleText').textContent = `Trap Line — Day ${state.day}`;
+
+  const nextLoc = LOCATION_UNLOCKS.find(l=>!isAreaUnlocked(l.id));
+  const goalEl = document.getElementById('cartelGoal');
+  if(!nextLoc){
+    goalEl.textContent = `The map is yours. Moon and Mars in a future build.`;
+  } else if((state.maxCashSeen||0) >= nextLoc.cost){
+    goalEl.textContent = `Next territory: ${getArea(nextLoc.id).name} — $${nextLoc.cost.toLocaleString()} in the Unlocks panel.`;
+  } else {
+    goalEl.textContent = `Keep stacking cash — word is new territory opens up for the right price.`;
+  }
+}
+function renderDayProgress(){
+  const pct = Math.min(100, ((Date.now()-state.dayStart)/dayMs())*100);
+  document.getElementById('dayProgress').style.width = pct+'%';
+}
+
+function renderMarket(){
+  const wrap = document.getElementById('marketList');
+  wrap.innerHTML='';
+  const table = state.prices[state.locationId];
+  if(!table) return;
+  const locked = state.lockedOut;
+  unlockedProducts().forEach(p=>{
+    const info = table[p.id];
+    const have = state.bag[p.id]||0;
+    const pct = scalePercent(info.price, info.baseline);
+    const div = document.createElement('div');
+    div.className='market-item';
+    div.innerHTML = `
+      <div class="mi-top">
+        <div class="mi-name">${p.name}<small>held: ${have}</small></div>
+        <div class="price-scale" title="cheap ← avg → pricey"><div class="marker" style="left:${pct}%;"></div></div>
+        <div class="mi-price">$${info.price.toLocaleString()}</div>
+      </div>
+      ${info.event ? `<div class="mi-event">${info.event}</div>` : ''}
+      <div class="mi-actions">
+        <button data-act="buy" data-qty="1" data-id="${p.id}" ${locked?'disabled':''}>Buy 1</button>
+        <button data-act="buy" data-qty="10" data-id="${p.id}" ${locked?'disabled':''}>10</button>
+        <button data-act="buy" data-qty="100" data-id="${p.id}" ${locked?'disabled':''}>100</button>
+        <button class="sell" data-act="sell" data-qty="1" data-id="${p.id}" ${locked||have<1?'disabled':''}>Sell 1</button>
+        <button class="sell" data-act="sell" data-qty="10" data-id="${p.id}" ${locked||have<10?'disabled':''}>10</button>
+        <button class="sell" data-act="sell" data-qty="100" data-id="${p.id}" ${locked||have<100?'disabled':''}>100</button>
+      </div>`;
+    wrap.appendChild(div);
+  });
+}
+
+function renderTravel(){
+  const wrap = document.getElementById('travelList');
+  wrap.innerHTML='';
+
+  function addHeader(text){
+    const h = document.createElement('div');
+    h.className='move-region';
+    h.style.gridColumn = '1 / -1';
+    h.textContent = `— ${text} —`;
+    wrap.appendChild(h);
+  }
+  function addHubButton(spot, label, sublabel){
+    const isHere = spot.id===state.locationId;
+    const btn = document.createElement('div');
+    btn.className = 'move-btn' + (isHere?' here':'');
+    btn.style.gridColumn = '1 / -1';
+    btn.innerHTML = `${label}<small>${sublabel}${isHere?' · HERE':''}</small>`;
+    if(!isHere) btn.addEventListener('click', ()=>travelTo(spot.id));
+    wrap.appendChild(btn);
+  }
+  function addAreaSpots(area){
+    const al = document.createElement('div');
+    al.className='move-area-label';
+    al.style.gridColumn = '1 / -1';
+    al.textContent = area.name;
+    wrap.appendChild(al);
+    area.spots.forEach(s=>{
+      const isHere = s.id===state.locationId;
+      const btn = document.createElement('div');
+      btn.className = 'move-btn' + (isHere?' here':'');
+      btn.innerHTML = `${s.name}<small>${area.travelCost&&!isHere?'$'+area.travelCost:''}</small>`;
+      if(!isHere) btn.addEventListener('click', ()=>travelTo(s.id));
+      wrap.appendChild(btn);
+    });
+  }
+
+  const continentsOrder = [...new Set(COUNTRIES.map(c=>c.continent))];
+  continentsOrder.forEach(continent=>{
+    const countries = continentCountries(continent);
+    const anyUnlocked = countries.some(c=>c.areaIds.some(isAreaUnlocked));
+    if(!anyUnlocked) return;
+
+    if(isContinentComplete(continent) && countries.length>1){
+      addHeader(continent);
+      addHubButton(hubSpotForContinent(continent), continent, 'Continent secured');
+      return;
+    }
+
+    let headerAdded = false;
+    countries.forEach(country=>{
+      const ownedAreas = country.areaIds.filter(isAreaUnlocked);
+      if(ownedAreas.length===0) return;
+      if(!headerAdded){ addHeader(continent); headerAdded = true; }
+      if(isCountryComplete(country) && country.areaIds.length>1){
+        addHubButton(hubSpotForCountry(country), country.name, 'Fully controlled');
+      } else {
+        ownedAreas.forEach(areaId=>addAreaSpots(getArea(areaId)));
+      }
+    });
+  });
+}
+
+function renderStash(){
+  const total = bagTotal();
+  document.getElementById('stashCapLabel').textContent = `${total} / ${state.bagCapacity} units`;
+  document.getElementById('stashBar').style.width = Math.min(100,(total/state.bagCapacity)*100)+'%';
+  const wrap = document.getElementById('stashList');
+  wrap.innerHTML='';
+  const held = PRODUCTS.filter(p=>(state.bag[p.id]||0) > 0);
+  if(held.length===0){
+    wrap.innerHTML = '<div class="empty-note">Empty. Buy low, move, sell high.</div>';
+    return;
+  }
+  held.forEach(p=>{
+    const row = document.createElement('div');
+    row.className='prod-row';
+    row.innerHTML = `<div>${p.name}</div><div>${state.bag[p.id]} u</div>`;
+    wrap.appendChild(row);
+  });
+}
+
+function renderRules(){
+  const wrap = document.getElementById('rulesList');
+  wrap.innerHTML='';
+  unlockedProducts().forEach(p=>{
+    const rule = state.crewRules[p.id];
+    if(!rule) return;
+    const bounds = ruleSliderBounds(p.id);
+    const div = document.createElement('div');
+    div.className='rule-item';
+    div.dataset.pid = p.id;
+    div.innerHTML = `
+      <div class="rule-head"><b>${p.name}</b>
+        <span class="vals"><span data-role="buyVal">$${rule.buyBelow}</span> / <span class="sellv" data-role="sellVal">$${rule.sellAbove}</span></span></div>
+      <div class="rule-scale"><div class="zone" data-role="zone"></div></div>
+      <div class="slider-pair">
+        <input type="range" data-role="buyBelow" min="${bounds.min}" max="${bounds.max}" value="${rule.buyBelow}" title="Buy below">
+        <input type="range" data-role="sellAbove" min="${bounds.min}" max="${bounds.max}" value="${rule.sellAbove}" title="Sell above">
+      </div>`;
+    wrap.appendChild(div);
+    updateRuleVisual(p.id);
+  });
+}
+function updateRuleVisual(pid){
+  const rule = state.crewRules[pid];
+  const div = document.querySelector(`.rule-item[data-pid="${pid}"]`);
+  if(!rule || !div) return;
+  const bounds = ruleSliderBounds(pid);
+  const span = bounds.max - bounds.min;
+  const leftPct = ((rule.buyBelow - bounds.min)/span)*100;
+  const rightPct = ((rule.sellAbove - bounds.min)/span)*100;
+  const zone = div.querySelector('[data-role=zone]');
+  zone.style.left = leftPct+'%';
+  zone.style.width = Math.max(0,(rightPct-leftPct))+'%';
+  div.querySelector('[data-role=buyVal]').textContent = '$'+rule.buyBelow;
+  div.querySelector('[data-role=sellVal]').textContent = '$'+rule.sellAbove;
+  div.querySelector('[data-role=buyBelow]').value = rule.buyBelow;
+  div.querySelector('[data-role=sellAbove]').value = rule.sellAbove;
+}
+
+function renderFactories(){
+  const box = document.getElementById('win-factories');
+  if(!factoriesUnlocked()){ box.classList.add('gamehidden'); return; }
+  box.classList.remove('gamehidden');
+
+  const priced = pricingUnlocked();
+  const total = totalFactories();
+  document.getElementById('factoriesNote').textContent = priced
+    ? 'Set your own prices below. Push above standard without Marketing and a chunk goes unsold.'
+    : `Passive production, sold at standard market price. ${total}/${FACTORY_TOTAL_FOR_PRICING} factories built — the Price Control Board unlocks custom pricing at ${FACTORY_TOTAL_FOR_PRICING}.`;
+
+  const wrap = document.getElementById('factoriesList');
+  wrap.innerHTML='';
+
+  if(!priced && total >= FACTORY_TOTAL_FOR_PRICING){
+    const upg = UPGRADES.find(u=>u.id===PRICING_UPGRADE_ID);
+    const cost = upgradeCost(upg);
+    const banner = document.createElement('div');
+    banner.className='pcb-banner';
+    banner.innerHTML = `<b>Price Control Board</b> — ${upg.desc}<br>
+      <button data-pcb="1" style="margin-top:5px;" ${state.cash<cost?'disabled':''}>Buy for $${cost.toLocaleString()}</button>`;
+    wrap.appendChild(banner);
+  }
+
+  unlockedProducts().forEach(p=>{
+    const owned = state.factories[p.id]||0;
+    const cost = factoryBuildCost(p.id, owned);
+    const row = document.createElement('div');
+    row.className='factory-row';
+    row.dataset.pid = p.id;
+    let pricingHtml = '';
+    if(priced && owned>0){
+      const mult = state.factoryPrice[p.id]||1;
+      const level = state.marketing[p.id]||0;
+      const frac = demandFraction(mult, level);
+      const mkCost = marketingCost(p.id, level);
+      pricingHtml = `
+        <div class="factory-pricing">
+          <div class="pr-row"><label>Price</label>
+            <input type="range" data-role="price" data-pid="${p.id}" min="50" max="300" value="${Math.round(mult*100)}">
+            <span class="pr-val">$${Math.round(p.base*mult).toLocaleString()}</span></div>
+          <div class="pr-row"><label>Marketing</label>
+            <span style="flex:1;">Level ${level}/4</span>
+            <button class="mk-btn" data-marketing="${p.id}" ${level>=4||state.cash<mkCost?'disabled':''}>${level>=4?'MAX':'+1 ($'+mkCost.toLocaleString()+')'}</button></div>
+          <div class="factory-demand">${Math.round(frac*100)}% of output sells at this price/marketing mix.</div>
+        </div>`;
+    }
+    row.innerHTML = `
+      <div class="factory-head">
+        <div><b>${p.name}${owned?` ×${owned}`:''}</b><small>${owned*FACTORY_UNITS_PER_DAY} units/day capacity</small></div>
+        <button data-build="${p.id}" ${state.cash<cost?'disabled':''}>Build $${cost.toLocaleString()}</button>
+      </div>
+      ${pricingHtml}`;
+    wrap.appendChild(row);
+  });
+}
+
+function renderHire(){
+  const wrap = document.getElementById('hireList');
+  wrap.innerHTML='';
+  if(state.unlockedStaff.length===0){
+    wrap.innerHTML = '<div class="empty-note">No crew tiers unlocked yet — check the Unlocks panel for Street Kids.</div>';
+    return;
+  }
+  STAFF_TIERS.forEach(tier=>{
+    if(!state.unlockedStaff.includes(tier.id)) return;
+    const owned = state.staff.filter(s=>s.tierId===tier.id).length;
+    const cost = hireCost(tier);
+    const cap = Math.round(tier.capacity*crewCapMult());
+    const row = document.createElement('div');
+    row.className='hire-row';
+    row.innerHTML = `
+      <div><b>${tier.name}</b>
+      <small>carries ${cap} · wage $${tier.wage}/day</small></div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div class="price">$${cost.toLocaleString()}</div>
+        <button data-hire="${tier.id}" ${state.cash<cost?'disabled':''}>Hire</button>
+        <span style="font-size:10px; color:#555; min-width:34px; text-align:left;">${owned?`×${owned}`:''}</span>
+      </div>`;
+    wrap.appendChild(row);
+  });
+}
+
+function renderCrew(){
+  const wrap = document.getElementById('crewList');
+  wrap.innerHTML='';
+  if(state.staff.length===0){
+    wrap.innerHTML = '<div class="empty-note">Nobody on the payroll. Crew check a random spot every 10 seconds and trade every unlocked product by the rulebook below.</div>';
+    return;
+  }
+  // group by tier
+  STAFF_TIERS.forEach(tier=>{
+    const members = state.staff.filter(s=>s.tierId===tier.id);
+    if(members.length===0) return;
+    const cap = Math.round(tier.capacity*crewCapMult()) * members.length;
+    const held = members.reduce((a,st)=>a+crewBagTotal(st),0);
+    // aggregate inventory
+    const agg = {};
+    members.forEach(st=>{
+      Object.keys(st.bag).forEach(pid=>{ agg[pid]=(agg[pid]||0)+st.bag[pid]; });
+    });
+    const invBits = Object.keys(agg).filter(pid=>agg[pid]>0)
+      .map(pid=>`<span>${nameOf(pid)} ${agg[pid]}</span>`).join('');
+    // most recent action from this tier
+    const lastAction = members.map(m=>m.lastAction).filter(Boolean).slice(-1)[0] || '';
+    const card = document.createElement('div');
+    card.className='tier-card';
+    card.innerHTML = `
+      <div class="tc-head"><b>${tier.name} ×${members.length}</b><button data-tier="${tier.id}">let 1 go</button></div>
+      <div class="tc-inv">Carrying ${held}/${cap}: ${invBits || '<i style="color:#888;">nothing</i>'}</div>
+      <div class="tc-status">${lastAction}</div>`;
+    wrap.appendChild(card);
+  });
+}
+
+function renderBribe(){
+  document.getElementById('bribeHeatBar').style.width = state.heat + '%';
+  document.getElementById('bribeHeatText').textContent = `Heat: ${Math.round(state.heat)}%`;
+  document.getElementById('lockoutBanner').classList.toggle('on', state.lockedOut);
+  const btn = document.getElementById('bribeBtn');
+  const cost = bribeCost();
+  btn.textContent = `PAY BRIBE — $${cost.toLocaleString()}`;
+  btn.disabled = state.cash < cost || state.heat <= 0;
+  const auto = upgCount('autobribe') > 0;
+  document.getElementById('bribeNote').textContent = auto
+    ? `Your cop on the payroll auto-pays whenever heat passes ${AUTO_BRIBE_THRESHOLD}%. Manual top-ups still welcome.`
+    : `Knocks ${BRIBE_HEAT_RELIEF} off your heat. Cops don't come cheap when you're rich.`;
+}
+
+function renderUnlocks(){
+  checkReveals();
+  const wrap = document.getElementById('unlockList');
+  wrap.innerHTML='';
+
+  // ---- Emergency bailout / broke message ----
+  if(state.cash < 0){
+    const box = document.createElement('div');
+    box.className='unlock-section';
+    box.textContent='EMERGENCY:';
+    wrap.appendChild(box);
+    const row = document.createElement('div');
+    row.className='unlock-row';
+    if(!state.usedBailout){
+      row.innerHTML = `
+        <div><b>Found a Bag of Cash</b><small>You spot a duffel bag on the floor. One-time only — clears your debt and leaves you $10,000 ahead.</small></div>
+        <button data-bailout="1">Grab it</button>`;
+    } else {
+      row.innerHTML = `
+        <div><b>You've Gone Broke</b><small>The bailout's already been used. Time for a fresh start — hit "New Game" up top.</small></div>`;
+    }
+    wrap.appendChild(row);
+  }
+
+  const sec1 = document.createElement('div');
+  sec1.className='unlock-section'; sec1.textContent='TERRITORY:';
+  wrap.appendChild(sec1);
+  LOCATION_UNLOCKS.forEach((u,idx)=>{
+    const done = isAreaUnlocked(u.id);
+    if(!territoryVisible(u, idx)) return;
+    const area = getArea(u.id);
+    const row = document.createElement('div');
+    row.className='unlock-row'+(done?' done':'');
+    row.innerHTML = `
+      <div><b>${area.name}</b><small>${u.products.length? 'Also unlocks: '+u.products.map(nameOf).join(', ') : 'New territory'}</small></div>
+      ${done ? '<span style="font-size:10px;color:#060;">OWNED</span>'
+             : `<button data-loc="${u.id}" ${state.cash<u.cost?'disabled':''}>$${u.cost.toLocaleString()}</button>`}`;
+    wrap.appendChild(row);
+  });
+
+  const secStaff = document.createElement('div');
+  secStaff.className='unlock-section'; secStaff.textContent='CREW TIERS:';
+  wrap.appendChild(secStaff);
+  STAFF_UNLOCKS.forEach((u,idx)=>{
+    const done = state.unlockedStaff.includes(u.tierId);
+    if(!staffTierVisible(u, idx)) return;
+    const tier = tierOf(u.tierId);
+    const row = document.createElement('div');
+    row.className='unlock-row'+(done?' done':'');
+    row.innerHTML = `
+      <div><b>${tier.name}s</b><small>carries ${tier.capacity} base · wage $${tier.wage}/day</small></div>
+      ${done ? '<span style="font-size:10px;color:#060;">OWNED</span>'
+             : `<button data-staff="${u.tierId}" ${state.cash<u.cost?'disabled':''}>$${u.cost.toLocaleString()}</button>`}`;
+    wrap.appendChild(row);
+  });
+
+  const sec2 = document.createElement('div');
+  sec2.className='unlock-section'; sec2.textContent='UPGRADES:';
+  wrap.appendChild(sec2);
+  UPGRADES.forEach((u,idx)=>{
+    if(u.id === PRICING_UPGRADE_ID) return; // shown inside the Factories panel instead
+    const count = upgCount(u.id);
+    const maxed = count >= u.max;
+    const cost = upgradeCost(u);
+    if(!upgradeVisible(u, idx)) return;
+    const row = document.createElement('div');
+    row.className='unlock-row'+(maxed?' done':'');
+    row.innerHTML = `
+      <div><b>${u.name}${count&&u.max<999&&u.max>1?` (${count}/${u.max})`:count>1?` ×${count}`:''}</b><small>${u.desc}</small></div>
+      ${maxed ? '<span style="font-size:10px;color:#060;">OWNED</span>'
+              : `<button data-upg="${u.id}" ${state.cash<cost?'disabled':''}>$${cost.toLocaleString()}</button>`}`;
+    wrap.appendChild(row);
+  });
+}
+
+function renderLog(){
+  const wrap = document.getElementById('logList');
+  if(!wrap) return;
+  wrap.innerHTML='';
+  if(state.log.length===0){
+    wrap.innerHTML = '<div class="empty-note">Nothing yet. It\'s coming.</div>';
+    return;
+  }
+  state.log.slice(0,18).forEach(entry=>{
+    const line = document.createElement('div');
+    line.className = 'log-line' + (entry.cls?(' '+entry.cls):'');
+    line.textContent = `[D${entry.day}] ${entry.msg}`;
+    wrap.appendChild(line);
+  });
+}
+
+function renderAchievements(){
+  const wrap = document.getElementById('achList');
+  wrap.innerHTML='';
+  const unlockedCount = state.achievementsUnlocked.length;
+  const header = document.createElement('div');
+  header.className='empty-note';
+  header.style.padding='2px 4px 8px';
+  header.textContent = `${unlockedCount} / ${ACHIEVEMENTS.length} unlocked`;
+  wrap.appendChild(header);
+  ACHIEVEMENTS.forEach(a=>{
+    const done = state.achievementsUnlocked.includes(a.id);
+    const row = document.createElement('div');
+    row.className = 'ach-row' + (done?'':' locked');
+    row.innerHTML = `
+      <div><b>${done?'✔ ':'🔒 '}${a.name}</b><small>${a.desc}</small></div>
+      <div class="ach-badge ${done?'done':'todo'}">${done?'DONE':'LOCKED'}</div>`;
+    wrap.appendChild(row);
+  });
+}
+
+function renderAll(){
+  seedMissingPrices();
+  ensureRules();
+  renderStatus();
+  renderMarket();
+  renderTravel();
+  renderStash();
+  renderRules();
+  renderFactories();
+  renderHire();
+  renderCrew();
+  renderBribe();
+  renderUnlocks();
+  renderLog();
+  applyWindowVisibility();
+  renderTaskbar();
+  updateFileMenu();
+}
+
+// ---- Events -------------------------------------------------------------------
+document.getElementById('marketList').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  const qty = parseInt(btn.dataset.qty, 10);
+  if(btn.dataset.act === 'buy') buy(btn.dataset.id, qty); else sell(btn.dataset.id, qty);
+});
+document.getElementById('rulesList').addEventListener('input', (e)=>{
+  const el = e.target;
+  const item = el.closest('.rule-item');
+  if(!item) return;
+  if(el.dataset.role==='buyBelow') setRule(item.dataset.pid, 'buyBelow', parseInt(el.value,10));
+  if(el.dataset.role==='sellAbove') setRule(item.dataset.pid, 'sellAbove', parseInt(el.value,10));
+});
+document.getElementById('hireList').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-hire]');
+  if(!btn) return;
+  hireStaff(btn.dataset.hire);
+});
+document.getElementById('crewList').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-tier]');
+  if(!btn) return;
+  if(confirm(`Let one ${tierOf(btn.dataset.tier).name} go? Their stock comes back to your trenchcoat (if it fits).`)) dismissOneOfTier(btn.dataset.tier);
+});
+document.getElementById('factoriesList').addEventListener('click', (e)=>{
+  const buildBtn = e.target.closest('button[data-build]');
+  if(buildBtn){ buildFactory(buildBtn.dataset.build); return; }
+  const mkBtn = e.target.closest('button[data-marketing]');
+  if(mkBtn){ buyMarketing(mkBtn.dataset.marketing); return; }
+  const pcbBtn = e.target.closest('button[data-pcb]');
+  if(pcbBtn){ buyPriceControl(); return; }
+});
+document.getElementById('factoriesList').addEventListener('input', (e)=>{
+  const el = e.target;
+  if(el.dataset.role==='price'){
+    const pid = el.dataset.pid;
+    const mult = parseInt(el.value,10)/100;
+    setFactoryPrice(pid, mult);
+    const row = document.querySelector(`.factory-row[data-pid="${pid}"]`);
+    if(row){
+      const p = prodOf(pid);
+      const level = state.marketing[pid]||0;
+      const frac = demandFraction(mult, level);
+      row.querySelector('.pr-val').textContent = '$'+Math.round(p.base*mult).toLocaleString();
+      row.querySelector('.factory-demand').textContent = `${Math.round(frac*100)}% of output sells at this price/marketing mix.`;
+    }
+  }
+});
+document.getElementById('unlockList').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  if(btn.dataset.loc) buyLocationUnlock(btn.dataset.loc);
+  if(btn.dataset.staff) buyStaffUnlock(btn.dataset.staff);
+  if(btn.dataset.upg) buyUpgrade(btn.dataset.upg);
+  if(btn.dataset.bailout) grabBailout();
+});
+document.getElementById('bribeBtn').addEventListener('click', ()=>payBribe(false));
+document.getElementById('turboBtn').addEventListener('click', ()=>{
+  // rebase day progress so toggling doesn't jump or instantly end the day
+  const elapsedFrac = (Date.now() - state.dayStart) / dayMs();
+  state.turbo = !state.turbo;
+  state.dayStart = Date.now() - elapsedFrac * dayMs();
+  document.getElementById('turboBtn').textContent = `Turbo ×10: ${state.turbo?'ON':'OFF'}`;
+  toast(state.turbo ? 'Testing mode: everything runs 10× faster.' : 'Back to normal speed.');
+  save(true);
+});
+document.getElementById('resetBtn').addEventListener('click', ()=>{
+  if(confirm('Wipe your save and start over?')) resetGame();
+});
+document.getElementById('saveBtn').addEventListener('click', ()=>save(false));
+let viewingAchievements = false;
+document.getElementById('achBtn').addEventListener('click', ()=>{
+  viewingAchievements = !viewingAchievements;
+  document.getElementById('mainContent').classList.toggle('hidden', viewingAchievements);
+  document.getElementById('achPanel').classList.toggle('hidden', !viewingAchievements);
+  document.getElementById('achBtn').textContent = viewingAchievements ? 'Back to Game' : 'Achievements';
+  if(viewingAchievements) renderAchievements();
+});
+
+document.getElementById('fileMenuItem').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  document.getElementById('fileDropdown').classList.toggle('hidden');
+});
+document.addEventListener('click', ()=>{
+  document.getElementById('fileDropdown').classList.add('hidden');
+});
+document.getElementById('freeKidsOption').addEventListener('click', (e)=>{
+  e.stopPropagation();
+  grantFreeKids();
+});
+
+// ---- Boot & timers ---------------------------------------------------------------
+if(!load()){
+  state = freshState();
+  seedMissingPrices();
+  log('New route started. Two boroughs, three products, no crew.', null);
+} else {
+  state.dayStart = state.dayStart || Date.now();
+  state.upgrades = state.upgrades || {};
+  state.staff = state.staff || [];
+  migrateStaff();
+  seedMissingPrices();
+}
+silentlyMarkExistingReveals();
+renderAll();
+if(state.turbo) document.getElementById('turboBtn').textContent = 'Turbo ×10: ON';
+
+setInterval(()=>{
+  renderDayProgress();
+  const now = Date.now();
+  if(now - state.dayStart >= dayMs()) endOfDay();
+  if(now - (state.lastCrewTick||0) >= crewTickMs()){
+    state.lastCrewTick = now;
+    crewTick();
+  }
+}, 250);
+</script>
+</body>
+</html>
